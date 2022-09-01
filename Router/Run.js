@@ -3,27 +3,31 @@ const url = require("url");
 const express = require("express");
 const { crawlListUrlProduct, crawlProductDetailByListUrlCtrl } = require("../Controller/runCtrl");
 const runRouter = express.Router();
-const listAdr = require("../dataCategories.json");
+const listAdr = require("../dataCrawl/dataCategories.json");
 const puppeteer = require("puppeteer");
-const dataAllLink = require("../dataLink.json");
-
+const dataAllLink = require("../dataCrawl/listUrlSet.json");
+ 
 let timeInterval;
 runRouter.get("/detail", async (req, res) => {
-   await crawlProductDetailByListUrlCtrl(dataAllLink.slice(0,25));
+   await crawlProductDetailByListUrlCtrl(dataAllLink); 
+   // await crawlProductDetailByListUrlCtrl(dataAllLink.slice(-15,-1)); 
+   // await crawlProductDetailByListUrlCtrl(dataAllLink.slice(0,15)); 
    res.send("test");
-   // return;
+   // return; 
 });
-runRouter.get("/", async (req, res) => {
-   const listAdr2 = listAdr.slice(30, 31);
+runRouter.get("/", async (req, res) => { 
+   // const listAdr2 = listAdr.slice(30, 31);
+   const listAdr2 = listAdr;
+
    // console.log(`  ~ listAdr2`, listAdr2);
 
    let countDelay = 1;
    const timeDelayReq = 1000;
-   const timeSuccsessReq = 5 * 1000;
+   const timeSuccsessReq = 5 * 1000; 
    const listData = [];
    const browser = await puppeteer.launch({
-      // headless: "chrome",
-      headless: false,
+      // headless: "chrome", 
+      headless: false, 
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
    });
    // const adr = "https://www2.hm.com/en_gb/ladies/shop-by-product/dresses.html"

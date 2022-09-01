@@ -4,17 +4,20 @@ const puppeteer = require("puppeteer");
 const fs = require("fs");
 const path = require("path");
 // const dataAll = require("../dataCrawl/data.json");
-const dataAllLink = require("../dataLink.json");
 const urlParse = require("url");
-
+const { readFile } = require("node:fs/promises");
+const { writeFile } = require("node:fs/promises");
+ 
 let data = [];
 let count = 0;
-let timeInterval = 0;
+let timeInterval = 0; 
 let countPageAwait = 0;
+let countError = 0;
 const timeStart = new Date().toLocaleTimeString();
 console.log(`  ~ timeStart`, timeStart);
 const crawlListUrlProduct = async (url, browser, categories) => {
    // const url = "https://www2.hm.com/en_gb/women/products/dresses.html";
+
    let countDelay = 1;
    const timeDelayReq = 1000;
    const timeSuccsessReq = 5 * 1000;
@@ -35,6 +38,7 @@ const crawlListUrlProduct = async (url, browser, categories) => {
          return dataFrontImg.map((item, index) => ({ ...item, ...dataBackImg[index] }));
       });
       await page.close();
+      articles.map(item=>item.categories=categories)
       return articles;
    } catch (error) {
       console.log(`  ~ error 2`, error);
@@ -86,9 +90,9 @@ const crawlListUrlProduct = async (url, browser, categories) => {
 };
 const crawlProductDetailByListUrlCtrl = async (articles) => {
    // console.log(`  ~ articles`, articles.length)
-   // return
+   // return 
    let countDelay = 1;
-   const timeDelayReq = 100;
+   const timeDelayReq = 800;
    const timeSuccsessReq = 5 * 1000;
    const browser = await puppeteer.launch({
       // headless: "chrome",
@@ -99,56 +103,66 @@ const crawlProductDetailByListUrlCtrl = async (articles) => {
    // const page = await browser.newPage();
    // await page.goto(url);
 
-   // console.log(`  ~ articles`, articles)
-   //   const articles=dataAllLink.splice(3);
+   // console.log(`  ~ articles`, articles) 
+   //   const articles=dataAllLink.splice(3); 
    //    console.log(`  ~ articles.length`, articles.length);
-   timeInterval = setInterval(async () => {
-      if (countPageAwait > 15) return;
-      if (articles.length < 10 && countDelay % 5 === 0) {
+   timeInterval = setInterval(async () => {  
+      if (countPageAwait > 5) return;
+      if (articles.length < countError && countDelay >2) {
+         console.log("END!!!!!!!!!!"); 
          timeInterval._repeat = 5 * 1000;
          setTimeout(async () => {
             clearInterval(timeInterval);
             await browser.close();
-            // console.log(`  ~ data`, data);
             try {
-               const dataAll = JSON.parse(await fs.promises.readFile(path.resolve(__dirname, "../dataCrawl/data.json")));
-               dataAll.push(...data);
+               // const dataAll = JSON.parse(await readFile(path.resolve(__dirname, "../dataCrawl/data.json")));
+               // dataAll.push(...data);
                const timeEnd = new Date().toLocaleTimeString();
+               console.log(`  ~ data`, data);
+               // await writeFile(path.resolve(__dirname, "../dataCrawl/data.json"), JSON.stringify(dataAll));
+               await writeFile(path.resolve(__dirname, "../dataCrawl/data.json"), JSON.stringify(data));
                console.log("timeStart", timeStart);
                console.log(`timeEnd`, timeEnd);
-               console.log(`  ~ data`, data);
-               await fs.promises.writeFile(path.resolve(__dirname, "../dataCrawl/data.json"), JSON.stringify(dataAll));
                // console.log(`  ~ data.length end`, data.length);
                return;
             } catch (error) {
-               console.log(`  ~ error FS`, error);
+               console.log(`  ~ error FS`, error);  
                return;
             }
          }, timeSuccsessReq);
          return;
       }
-      if (articles.length < 10) {
+      if (articles.length < countError) {
+         // countError = articles.length ? articles.length + countPageAwait : 0;
+         countError = 0;
          countDelay++;
          return;
       }
       const dataFisrt = articles.shift();
-      console.log(`articles.length: `, articles.length, " - ", data.length, " - ", countPageAwait);
-      try {
+      console.log(
+         `articles.length: `,
+         articles.length,
+         "-dataLength ",
+         data.length,
+         "-countPageAwait ",
+         countPageAwait,
+         "-countErr ",
+         countError,
+         "-",
+         timeStart,
+         "countDelay",
+         countDelay
+      );
+      try { 
          count++;
-         const q = urlParse.parse(dataFisrt.url, true);
-         const chars = { ".html": "", "-": " ", "/en_gb/": "", "/products": "", "/view-all": "", "/shop-by-product": "", "/seasonal-trending": "" };
-         const categories = q.pathname
-            .replace(/.html|-|\/en_gb\/|\/products|\/view-all|\/seasonal-trending|\/shop-by-product/g, (m) => chars[m])
-            .split("/")
-            .map((category) => category[0].toUpperCase() + category.slice(1));
          countPageAwait++;
-         const dataDetail = await crawlProductDetailCtrl({ url: dataFisrt.url, browser, categories });
-
+         const dataDetail = await crawlProductDetailCtrl({ url: dataFisrt.url, browser,categories:dataFisrt.categories });
          countPageAwait--;
          data.push({ ...dataFisrt, ...dataDetail });
       } catch (error) {
+         countError++;
          articles.push(dataFisrt);
-         countPageAwait--;
+         countPageAwait--
       }
    }, timeDelayReq);
 };
@@ -212,19 +226,21 @@ const crawlProductDetailCtrl = async ({ url, browser, categories }) => {
             })),
          };
       });
-      try {
-         const review = await axios.get(
-            "https://www2.hm.com/en_gb/reviews/rrs/reviews?sort=textLength%3Adesc&filter=&limit=100&offset=0&includeFilters=true&includeRelated=true&suppressUserPII=true&sku=" +
-               articles.reviewSku,
-            { headers: { "Content-Type": "application/json; charset=utf-8" } }
-         );
-         review.data.reviews.map((item) => (item.idProduct = articles.id));
-         articles.reviews = review.data.reviews;
-         articles.reviewsLength = review.data.reviews.length;
-      } catch (error) {
-         console.log(`  ~ error review`, error.message);
-         articles.reviews = [];
-      }
+      // try {
+      //    const review = await axios.get(
+      //       "https://www2.hm.com/en_gb/reviews/rrs/reviews?sort=textLength%3Adesc&filter=&limit=30&offset=0&includeFilters=true&includeRelated=true&suppressUserPII=true&sku=" +
+      //          articles.reviewSku,
+      //       { headers: { "Content-Type": "application/json; charset=utf-8" } } 
+      //    );
+      //    review.data.reviews.map((item) => (item.idProduct = articles.id));
+      //    articles.reviews = review.data.reviews;
+      //    articles.reviewsLength = review.data.reviews.length;
+      // } catch (error) { 
+      //    console.log(`  ~ error review`, error.message);
+      //    await page.close();
+      //    throw new Error("err Review");
+      //    articles.reviews = [];
+      // }
       articles.categories = categories.map((category) => ({ name: category }));
       articles.stock_quantity = 10 * Math.round(10 * Math.random()) || 1;
       const listBrand = ["Allen Solly", "Louis Philippe", "HRX", `H&M`, "Puma", "Fila", "Louis Philippe Sport", "Nike", "Zara"];
